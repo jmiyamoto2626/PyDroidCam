@@ -10,7 +10,8 @@ while(True):
     cv2.imshow("remote" , frame)
     # qキー入力でwhileループを抜ける
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        cv2.imwrite("finish_frame.jpg",frame)
+        #cv2.imwrite("finish_frame.jpg",frame)
+        cv2.imwrite("finish_frame.bmp",frame)
         break
 
 # 撮影用オブジェクトとウィンドウの解放
