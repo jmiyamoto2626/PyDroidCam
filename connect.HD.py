@@ -77,6 +77,9 @@ def mono2whiteback(ref):
 def replaceCharDot(mono,src):
     #print("replaceCharDot")
     debug = 0
+    speed_test = 1
+    if speed_test:
+        start_time =time.time()
     size_mono = 3,3,3
     size_color = 3,3,3
     kernel3x3mono = np.zeros(size_mono,dtype=np.uint8)
@@ -195,6 +198,10 @@ def replaceCharDot(mono,src):
         #cv2.waitKey(1)
     #cv2.imwrite("mono.replaced.bmp",mono)
     #cv2.imwrite("color.replaced.bmp",src)
+    if speed_test:
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
     return src
 # 関数の終端
 
@@ -236,8 +243,8 @@ while(True):
     #    cv2.imwrite("100.before.bmp",frame)
     match_img = frame[y:y+ref_height , x:x+ref_width]
     replaced_logo = replaceCharDot(ref_inv,match_img)
-    cv2.imshow("replaced_logo",replaced_logo)
-    cv2.imshow("ref_inv",ref_inv)
+    #cv2.imshow("replaced_logo",replaced_logo)
+    #cv2.imshow("ref_inv",ref_inv)
 
     # 文字部を置換したもので原画に上書きする
     frame[y:y+ref_height , x:x+ref_width] = replaced_logo
