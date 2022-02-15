@@ -1,6 +1,11 @@
 # DroidCam接続
 from logging.handlers import RotatingFileHandler
+from tracemalloc import start
 import cv2
+import numpy as np
+
+
+import time
 
 def CropLogo():
     src = cv2.imread("./finish_frame.black.bmp")
@@ -61,30 +66,181 @@ def goTemplateMatch():
     cv2.destroyAllWindows()
     cv2.imwrite("match_img.bmp",match_img)
 
+def mono2whiteback():
+    ref = cv2.imread("logo.thresh.bmp")
+    dst = cv2.bitwise_not(ref)
+    cv2.imshow("before",ref)
+    cv2.imshow("after",dst)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    cv2.imwrite("logo.thresh.inv.bmp",dst)
+
 def replaceCharDot():
     print("replaceCharDot")
+    debug = 0
+    size_mono = 3,3,3
+    size_color = 3,3,3
+    kernel3x3mono = np.zeros(size_mono,dtype=np.uint8)
+    kernel3x3color = np.zeros(size_color,dtype=np.uint8)
+    
+    if debug:
+        print("kernel3x3mono.shape:",kernel3x3mono.shape)
+    mono = cv2.imread("logo.thresh.inv.bmp")
+    src = cv2.imread("match_img.bmp")
+    mono_org = mono.copy()
+    src_org = src.copy()
+    width = src.shape[1]
+    height = src.shape[0]
+    if debug :
+        print("width , height =",width , height)
+    for n in range (height -2):
+    #for n in range (3):
+        if debug :
+            print("---n=",n,"---")
+        for m in range(width -2):
+        #for m in range(3):
+            if debug :
+                print("-----n:m=",n,":",m,"-----")
+            kernel3x3mono[0,0] = mono[n,m]
+            kernel3x3mono[0,1] = mono[n,m+1]
+            kernel3x3mono[0,2] = mono[n,m+2]
+            kernel3x3mono[1,0] = mono[n+1,m]
+            kernel3x3mono[1,1] = mono[n+1,m+1]
+            kernel3x3mono[1,2] = mono[n+1,m+2]
+            kernel3x3mono[2,0] = mono[n+2,m]
+            kernel3x3mono[2,1] = mono[n+2,m+1]
+            kernel3x3mono[2,2] = mono[n+2,m+2]
+            
+            #exit
+            if 0 :
+                cv2.imshow("debug mono",kernel3x3mono)
+                cv2.imshow("debug color",kernel3x3color)
+                #cv2.waitKey(0)
+            if kernel3x3mono[1,1,0] == 0 :
+                # センターが黒（文字）画素だったら
+                kernel3x3color[0,0] = src[n,m]
+                kernel3x3color[0,1] = src[n,m+1]
+                kernel3x3color[0,2] = src[n,m+2]
+                kernel3x3color[1,0] = src[n+1,m]
+                kernel3x3color[1,1] = src[n+1,m+1]
+                kernel3x3color[1,2] = src[n+1,m+2]
+                kernel3x3color[2,0] = src[n+2,m]
+                kernel3x3color[2,1] = src[n+2,m+1]
+                kernel3x3color[2,2] = src[n+2,m+2]
+                kernel3x3color = cv2.bitwise_and(kernel3x3mono,kernel3x3color)
 
+                if debug : 
+                    print(kernel3x3mono)
+                    print("---")
+                    print(kernel3x3color)
+                if debug :
+                    size_resize = 300,300,3
+                    kMonoResize = np.zeros(size_resize,dtype=np.uint8)
+                    kColorResize = np.zeros(size_resize,dtype=np.uint8)
+                    kMonoResize[  0:100,  0:100] = kernel3x3mono[0,0]
+                    kMonoResize[  0:100,100:200] = kernel3x3mono[0,1]
+                    kMonoResize[  0:100,200:300] = kernel3x3mono[0,2]
+                    kMonoResize[100:200,  0:100] = kernel3x3mono[1,0]
+                    kMonoResize[100:200,100:200] = kernel3x3mono[1,1]
+                    kMonoResize[100:200,200:300] = kernel3x3mono[1,2]
+                    kMonoResize[200:300,  0:100] = kernel3x3mono[2,0]
+                    kMonoResize[200:300,100:200] = kernel3x3mono[2,1]
+                    kMonoResize[200:300,200:300] = kernel3x3mono[2,2]
+                    
+                    kColorResize[  0:100,  0:100] = kernel3x3color[0,0]
+                    kColorResize[  0:100,100:200] = kernel3x3color[0,1]
+                    kColorResize[  0:100,200:300] = kernel3x3color[0,2]
+                    kColorResize[100:200,  0:100] = kernel3x3color[1,0]
+                    kColorResize[100:200,100:200] = kernel3x3color[1,1]
+                    kColorResize[100:200,200:300] = kernel3x3color[1,2]
+                    kColorResize[200:300,  0:100] = kernel3x3color[2,0]
+                    kColorResize[200:300,100:200] = kernel3x3color[2,1]
+                    kColorResize[200:300,200:300] = kernel3x3color[2,2]
+                    #kMonoResize = cv2.resize(kernel3x3mono,dsize=None,fx=100,fy=100)
+                    #kColorResize = cv2.resize(kernel3x3color,dsize=None,fx=100,fy=100)
+                    cv2.imshow("debug mono",kMonoResize)
+                    cv2.imshow("debug color",kColorResize)
+                    #cv2.waitKey(100)
+
+                # 白（有効画素）をカウント
+                count_valid = 0
+                for i in range(3):
+                    for j in range(3):
+                        if kernel3x3mono[i,j,0] == 255:
+                            count_valid = count_valid + 1
+                if debug :
+                    print("count_valid:",count_valid)
+                # 有効画素のレベルの積算値を算出。rgbごとに。
+                color_sum_b = 0
+                color_sum_g = 0
+                color_sum_r = 0
+                for i in range(3):
+                    for j in range(3):
+                        color_sum_b = color_sum_b + kernel3x3color[i,j,0]
+                        color_sum_g = color_sum_g + kernel3x3color[i,j,1]
+                        color_sum_r = color_sum_r + kernel3x3color[i,j,2]
+                # 有効画素の平均レベルを算出
+                color_ave_b = color_sum_b / count_valid
+                color_ave_g = color_sum_g / count_valid
+                color_ave_r = color_sum_r / count_valid
+                if debug :
+                    print("color_ave(b,g,r):",color_ave_b,color_ave_g,color_ave_r)
+                # カラー画像の中央を平均値で置換
+                src[n+1,m+1,0] = color_ave_b
+                src[n+1,m+1,1] = color_ave_g
+                src[n+1,m+1,2] = color_ave_r
+                # ２値化画像の中央を有効画素扱いにする（置換が終わったから）
+                mono[n+1,m+1,0] = 255
+                mono[n+1,m+1,1] = 255
+                mono[n+1,m+1,2] = 255
+            # 水平スキャンの終端
+        # 垂直スキャンの終端
+    # 置換作業の終端
+    if debug :
+        cv2.imshow("fin_mono",mono)
+        cv2.imshow("fin_color",src)
+        cv2.imshow("org_mono",mono_org)
+        cv2.imshow("org_color",src_org)
+        cv2.waitKey(1)
+    cv2.imwrite("mono.replaced.bmp",mono)
+    cv2.imwrite("color.replaced.bmp",src)
+
+                
+                
+                        
+                
+                    
+
+
+
+
+        
+
+start_time = time.time()
 #CropLogo()
 #threshold_otsu()
-goTemplateMatch()
+#mono2whiteback()
+#goTemplateMatch()
+replaceCharDot()
+end_time = time.time()
+elapsed_time = end_time - start_time
+print("elapsed_time:{0}".format(elapsed_time) + "[sec]")
 
 '''
-置換作業とは具体的にどうするのか
-案１：パンニング時に、移動量を検知して、文字で隠れている画素が撮影された他のフレームの画素で置換
-案２：周辺画素で補間
+２値化画像を文字を黒、背景を白にする
+文字部を拡張処理する（でこぼこを無くする）
+３x３カーネルで２値化画像をスキャンする
+センターに文字（黒）がある場合、
+　　カラー画像の同じ位置の３x３に対して２値化画像でANDをとることで有効画素のみ取得
+　　有効画素を有効画素数で割って平均を算出
+　　カラー画像のカーネル中央を平均値で置換
+　　２値化画像のカーネル中央を背景（白）で置換
+　　次に進む
+右端まで行ったら、左端に戻って位置画素下に移動
+これを繰り返して切り出し後の全画素をスキャンしながら置換を完了する
 
-案２が現実的
-ではどのように補間するか？
-３x３カーネルで考えて、センター画素に着目。二値化画像で、センターが文字部か否かを判定。
-　文字部の場合に、周辺画素で文字がない画素をカウント。
-　周辺画素のうち文字でない画素の平均を作成してセンター画素を置換
-　これをカーネルをスキャンしながら実施。
-　？以前に置換してできた画素データは、別のセンターに対する周辺画素として利用するのか？
-　　そのとき、スキャンの方向に、置換後の画像が依存する可能性がある（一定方向に引きずられる）
-　　まぁ、それでもいいけど。品位は見てからかなぁ。
-案３：案１と２のハイブリッド
+置換が終わったら、元画像に対して貼り付けする
 '''
-
 
 '''
 cap = cv2.VideoCapture()
